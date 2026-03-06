@@ -6,8 +6,9 @@ load_dotenv()
 
 MONGO_URL = os.getenv("MONGO_URL")
 
-client = AsyncIOMotorClient(MONGO_URL)
-db = client["ma_base"]
+if not MONGO_URL:
+    raise Exception("MONGO_URL manquant dans le .env")
 
-# Ajoute ici toutes tes collections
-users_collection = db["users"]
+client = AsyncIOMotorClient(MONGO_URL)
+db = client["produits_db"]
+products_collection = db["products"]

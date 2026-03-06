@@ -1,6 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from database import client
+from bson import ObjectId
+from database import client, products_collection
+from models import Product
 
 app = FastAPI()
 
@@ -12,15 +14,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Vérifie la connexion MongoDB au démarrage
+# Helper — convertit un doc MongoDB en dict propre
+def product_helper(product) -> dict:
+    return {
+        "id": str(product["_id"]),
+        "name": product["name"],
+        "price": product["price"],
+        "description": product.get("description"),
+    }
+
+# Vérif connexion MongoDB au démarrage
 @app.on_event("startup")
 async def startup_db():
     try:
         await client.admin.command("ping")
-        print("✅ Connecté à MongoDB Atlas")
+        print("Connecté à MongoDB Atlas")
     except Exception as e:
-        print(f"❌ Erreur MongoDB : {e}")
+        print(f"Erreur MongoDB : {e}")
 
-@app.get("/")
-async def root():
-    return {"message": "API en ligne"}
+# ─────────────────────────────────────────
+# GET /products — récupérer tous les produits
+# ─────────────────────────────────────────
+@app.get("/products")
+async def get_products():
+    products = []
+    async for product in products_collection.find():
+        products.append(product_helper(product))
+    return products
+
+# ─────────────────────────────────────────
+# POST /products — ajouter un produit
+# ─────────────────────────────────────────
+@app.post("/products", status_code=201)
+async def create_product(product: Product):
+    result = await products_collection.insert_one(product.dict())
+    new_product = await products_collection.find_one({"_id": result.inserted_id})
+    return product_helper(new_product)
